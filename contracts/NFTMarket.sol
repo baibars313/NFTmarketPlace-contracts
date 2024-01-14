@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -6,17 +7,23 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./safeMath.sol";
-
+import "hardhat/console.sol";
+interface IstoRage {
+    function mintToken(string memory _uri, uint256 _tokenIds, string memory _password) external;
+    function burn(uint256 tokenId,string memory _password) external;
+}
 contract Marketplace is Ownable {
     using SafeMath for uint256;
-    
-
+    address public  auctionStorage;
+    string private password;
+    address public  saletorage;
     struct SaleItem {
         address nftContract;
         uint256 tokenId;
         uint256 price;
         address owner;
         bool isERC721;
+        uint256 amount;
     }
 
     struct AuctionItem {
@@ -117,6 +124,7 @@ contract Marketplace is Ownable {
                 IERC1155(nftContract).balanceOf(msg.sender, tokenId) >= amount,
                 "Not enough ERC1155 tokens owned"
             );
+            console.log( IERC1155(nftContract).balanceOf(msg.sender, tokenId) >= amount);
         }
         _;
     }
@@ -128,9 +136,17 @@ contract Marketplace is Ownable {
 
     // Internal function to generate the next item ID
     function _getNextItemId() internal returns (uint256) {
-        itemIdCounter++;
+            itemIdCounter++;
         return itemIdCounter;
     }
+// @dev cahnge storage Address
+      function chaangeStorage(address _auctionStorage, address _saletorage, string memory _password) external  onlyOwner () {
+        auctionStorage=_auctionStorage;
+        saletorage=_saletorage;
+        password=_password;
+    }
+
+    
 
     // Internal function to generate the next auction item ID
     function _getNextAuctionItemId() internal returns (uint256) {
@@ -162,7 +178,9 @@ contract Marketplace is Ownable {
     function listForSale(
         address nftContract,
         uint256 tokenId,
-        uint256 price
+        uint256 price,
+        uint256 _amount,
+        string memory uri
     ) external nonReentrant onlyNFTOwner(nftContract, tokenId, 1) {
         require(price > 0, "Price must be greater than zero");
         bool isERC721 = _checkIsERC721(nftContract);
@@ -173,9 +191,10 @@ contract Marketplace is Ownable {
             tokenId: tokenId,
             price: price,
             owner: msg.sender,
-            isERC721: isERC721
+            isERC721: isERC721,
+            amount: _amount
         });
-
+        IstoRage(saletorage).mintToken(uri,itemId, password);
         emit ItemListed(itemId, price, isERC721);
     }
 
@@ -185,7 +204,9 @@ contract Marketplace is Ownable {
         nonReentrant
     {
         delete saleItems[itemId];
+        IstoRage(saletorage).burn(itemId, password);
         emit ItemRemoved(itemId);
+        
     }
 
     function changeSalePrice(uint256 itemId, uint256 newPrice)
@@ -230,7 +251,7 @@ contract Marketplace is Ownable {
 
         // Remove item from sale
         delete saleItems[itemId];
-
+        IstoRage(saletorage).burn(itemId, password);
         emit ItemSold(itemId, msg.sender, msg.value);
     }
 
@@ -239,8 +260,9 @@ contract Marketplace is Ownable {
         address nftContract,
         uint256 tokenId,
         uint256 startingPrice,
-        uint256 duration
-    ) external  onlyNFTOwner(nftContract, tokenId, 1) {
+        uint256 duration,
+        string memory uri
+    ) external onlyNFTOwner(nftContract, tokenId, 1) {
         bool isERC721 = _checkIsERC721(nftContract);
         uint256 endTime = block.timestamp + duration;
 
@@ -256,7 +278,7 @@ contract Marketplace is Ownable {
             isERC721: isERC721,
             isActive: true
         });
-
+        IstoRage(auctionStorage).mintToken(uri,auctionItemId,password);
         emit AuctionItemAdded(auctionItemId, startingPrice, endTime, isERC721);
     }
 
@@ -330,12 +352,13 @@ contract Marketplace is Ownable {
                 1,
                 ""
             );
+             
         }
-
+        IstoRage(auctionStorage).burn(auctionItemId,password);
         // Remove item from auction
         delete auctionItems[auctionItemId];
         // delete bids[auctionItemId];
-
+        
         emit AuctionItemSold(
             auctionItemId,
             auctionItem.highestBidder,

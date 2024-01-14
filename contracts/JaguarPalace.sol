@@ -13,9 +13,7 @@ contract Marketplace is Ownable {
         bool isBlacklisted;
     }
 
-    
-
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor() Ownable(msg.sender) {}
 
     // Define the state struct for items
     struct Item {
@@ -33,9 +31,11 @@ contract Marketplace is Ownable {
         uint256 itemId;
         address buyer;
     }
-    function AddToken(address newOwner) public  onlyOwner {
-            tokenAddress=newOwner;
+
+    function AddToken(address newOwner) public onlyOwner {
+        tokenAddress = newOwner;
     }
+
     // Define the state struct for blacklisted users
     struct BlacklistUser {
         bool isBlacklisted;
@@ -131,7 +131,7 @@ contract Marketplace is Ownable {
         emit UserWhitelisted(_user);
     }
 
-    // Function to create a new item
+    // Function to create or update an item
     function createItem(
         uint256 _itemId,
         uint256 _priceInEth,
@@ -139,20 +139,27 @@ contract Marketplace is Ownable {
         string memory _uri,
         bool _isUnlimited,
         uint256 _saleEndTime
-    ) external onlyOwner {
-        require(
-            items[_itemId].owner == address(0),
-            "Item with this ID already exists"
-        );
+    ) external {
+        Item storage item = items[_itemId];
 
+        // Check if the item exists
+        if (item.owner != address(0)) {
+            // Item exists, check if the caller is the owner
+            require(
+                item.owner == msg.sender,
+                "Only the owner can update the item"
+            );
+        }
+
+        // Update/Create the item details
         items[_itemId] = Item({
-            owner: owner(),
+            owner: msg.sender,
             priceInEth: _priceInEth,
             priceInToken: _priceInToken,
             uri: _uri,
             isUnlimited: _isUnlimited,
             isSold: false,
-            saleEndTime: _saleEndTime
+            saleEndTime: block.timestamp + _saleEndTime
         });
 
         emit ItemCreated(_itemId);
@@ -183,8 +190,8 @@ contract Marketplace is Ownable {
         payable(item.owner).transfer(msg.value.sub(fee));
 
         // Mark the item as sold
-        item.isSold = true;
-
+        
+        
         // Record the bought item
         boughtItems[_itemId] = BoughtItem({itemId: _itemId, buyer: msg.sender});
 
@@ -208,7 +215,10 @@ contract Marketplace is Ownable {
         // Assume you have a ERC20 token contract address stored in a variable named "tokenAddress"
         IERC20 token = IERC20(tokenAddress);
         // Transfer tokens from the buyer to the contract
-        require(token.transferFrom(msg.sender, address(this), _tokenAmount), "Token transfer failed");
+        require(
+            token.transferFrom(msg.sender, address(this), _tokenAmount),
+            "Token transfer failed"
+        );
 
         // Transfer the fee to the contract owner
         // Transfer the fee to the contract owner
@@ -216,16 +226,16 @@ contract Marketplace is Ownable {
         require(token.transfer(owner(), fee), "Token transfer failed");
 
         // Transfer the remaining value to the user
-        require(token.transfer(item.owner, _tokenAmount.sub(fee)), "Token transfer failed");
+        require(
+            token.transfer(item.owner, _tokenAmount.sub(fee)),
+            "Token transfer failed"
+        );
 
         // Mark the item as sold
         item.isSold = true;
 
         // Record the bought item
-        boughtItems[_itemId] = BoughtItem({
-            itemId: _itemId,
-            buyer: msg.sender
-        });
+        boughtItems[_itemId] = BoughtItem({itemId: _itemId, buyer: msg.sender});
 
         emit ItemBought(_itemId, msg.sender);
     }
