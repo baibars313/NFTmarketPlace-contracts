@@ -119,10 +119,7 @@ contract Marketplace is Ownable {
         emit ItemListed(itemId, price, isERC721);
     }
 
-     function sent(address payable _to, uint256 _amount) internal returns (bool){
-        (bool _sent,) = _to.call{value: _amount}("");
-        return  _sent;
-    }
+    
 
     function removeFromSale(uint256 itemId) external onlyItemOwner(itemId) {
         delete saleItems[itemId];
@@ -142,10 +139,8 @@ contract Marketplace is Ownable {
         address admin = owner();
         uint256 adminFee = (msg.value.mul(marketplaceFee)).div(100);
         uint256 sellerProceeds = msg.value.sub(adminFee);
-        bool _sentSeller=sent(payable(saleItem.owner) , sellerProceeds);
-        bool _sentOwner=sent(payable(admin) , adminFee);
-        require(_sentSeller, 'unable to pay price ');
-        require(_sentOwner, 'unable to pay owner fee');
+        payable(admin).transfer(adminFee);
+        payable(saleItem.owner).transfer(sellerProceeds);
         if (saleItem.isERC721) {
             IERC721(saleItem.nftContract).transferFrom(saleItem.owner, msg.sender, saleItem.tokenId);
         } else {
@@ -212,7 +207,6 @@ contract Marketplace is Ownable {
         payable(msg.sender).transfer(bidAmount);
         emit BidPlaced(auctionItemId, msg.sender, 0);
     }
-    
 
     function getBidAmount(uint256 auctionItemId) external view returns (uint256) {
         return bids[auctionItemId][msg.sender];
