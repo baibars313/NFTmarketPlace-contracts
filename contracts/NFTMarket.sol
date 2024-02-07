@@ -212,6 +212,7 @@ contract Marketplace is Ownable {
         payable(msg.sender).transfer(bidAmount);
         emit BidPlaced(auctionItemId, msg.sender, 0);
     }
+    
 
     function getBidAmount(uint256 auctionItemId) external view returns (uint256) {
         return bids[auctionItemId][msg.sender];
